@@ -49,6 +49,7 @@
         <module>apache</module>
         <module>grizzly</module>
         <module>netty</module>
+        <module>channelmgr</module>
     </modules>
 
     <dependencies>
