@@ -17,7 +17,7 @@ import com.ning.http.client.AsyncHttpClientConfig;
 import com.ning.http.client.AsyncHttpProviderConfig;
 import com.ning.http.client.async.ProviderUtil;
 import com.ning.http.client.async.RedirectConnectionUsageTest;
-import com.ning.http.client.providers.chanmgr.NettyAsyncHttpProviderConfig;
+import com.ning.http.client.providers.chanmgr.ChanMgrAsyncHttpProviderConfig;
 
 public class NettyRedirectConnectionUsageTest extends RedirectConnectionUsageTest {
     @Override
@@ -27,11 +27,8 @@ public class NettyRedirectConnectionUsageTest extends RedirectConnectionUsageTes
 
     @Override
     protected AsyncHttpProviderConfig getProviderConfig() {
-        final NettyAsyncHttpProviderConfig config = 
-                new NettyAsyncHttpProviderConfig();
-        if (System.getProperty("blockingio") != null) {
-            config.addProperty(NettyAsyncHttpProviderConfig.USE_BLOCKING_IO, "true");
-        }
+        final ChanMgrAsyncHttpProviderConfig config = 
+                new ChanMgrAsyncHttpProviderConfig();
         return config;
     }
 }

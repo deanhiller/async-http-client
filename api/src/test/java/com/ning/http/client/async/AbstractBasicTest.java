@@ -41,6 +41,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Enumeration;
 
+import junit.framework.TestCase;
+
 public abstract class AbstractBasicTest {
     protected final Logger log = LoggerFactory.getLogger(AbstractBasicTest.class);
     protected Server server;

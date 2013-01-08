@@ -25,42 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * This class can be used to pass Netty's internal configuration options. See Netty documentation for more information.
  */
-public class NettyAsyncHttpProviderConfig implements AsyncHttpProviderConfig<String, Object> {
-
-    /**
-     * Use Netty's blocking IO stategy.
-     */
-    public final static String USE_BLOCKING_IO = "useBlockingIO";
-
-    /**
-     * Use direct {@link java.nio.ByteBuffer}
-     */
-    public final static String USE_DIRECT_BYTEBUFFER = "bufferFactory";
-
-    /**
-     * Execute the connect operation asynchronously.
-     */
-    public final static String EXECUTE_ASYNC_CONNECT = "asyncConnect";
-
-    /**
-     * Allow nested request from any {@link com.ning.http.client.AsyncHandler}
-     */
-    public final static String DISABLE_NESTED_REQUEST = "disableNestedRequest";
-
-    /**
-     * Allow configuring the Netty's boss executor service.
-     */
-    public final static String BOSS_EXECUTOR_SERVICE = "bossExecutorService";
-
-    /**
-     * See {@link java.net.Socket#setReuseAddress(boolean)}
-     */
-    public final static String REUSE_ADDRESS = "reuseAddress";
+public class ChanMgrAsyncHttpProviderConfig implements AsyncHttpProviderConfig<String, Object> {
 
     private final ConcurrentHashMap<String, Object> properties = new ConcurrentHashMap<String, Object>();
 
-    public NettyAsyncHttpProviderConfig() {
-        properties.put(REUSE_ADDRESS, "false");
+    public ChanMgrAsyncHttpProviderConfig() {
+        //properties.put(REUSE_ADDRESS, "false");
     }
 
     /**
@@ -70,7 +40,7 @@ public class NettyAsyncHttpProviderConfig implements AsyncHttpProviderConfig<Str
      * @param value the value of the property
      * @return this instance of AsyncHttpProviderConfig
      */
-    public NettyAsyncHttpProviderConfig addProperty(String name, Object value) {
+    public ChanMgrAsyncHttpProviderConfig addProperty(String name, Object value) {
         properties.put(name, value);
         return this;
     }

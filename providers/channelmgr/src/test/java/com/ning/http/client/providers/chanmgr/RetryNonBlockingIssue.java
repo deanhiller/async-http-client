@@ -17,7 +17,7 @@ import com.ning.http.client.AsyncHttpClientConfig;
 import com.ning.http.client.ListenableFuture;
 import com.ning.http.client.RequestBuilder;
 import com.ning.http.client.Response;
-import com.ning.http.client.providers.chanmgr.NettyAsyncHttpProviderConfig;
+import com.ning.http.client.providers.chanmgr.ChanMgrAsyncHttpProviderConfig;
 
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
@@ -140,8 +140,8 @@ public class RetryNonBlockingIssue {
             bc.setConnectionTimeoutInMs(60000);
             bc.setRequestTimeoutInMs(30000);
 
-            NettyAsyncHttpProviderConfig config = new
-                    NettyAsyncHttpProviderConfig();
+            ChanMgrAsyncHttpProviderConfig config = new
+                    ChanMgrAsyncHttpProviderConfig();
 
             bc.setAsyncHttpClientProviderConfig(config);
             c = new AsyncHttpClient(bc.build());
@@ -184,9 +184,9 @@ public class RetryNonBlockingIssue {
             bc.setConnectionTimeoutInMs(60000);
             bc.setRequestTimeoutInMs(30000);
 
-            NettyAsyncHttpProviderConfig config = new
-                    NettyAsyncHttpProviderConfig();
-            config.addProperty(NettyAsyncHttpProviderConfig.EXECUTE_ASYNC_CONNECT, "true");
+            ChanMgrAsyncHttpProviderConfig config = new
+                    ChanMgrAsyncHttpProviderConfig();
+            //config.addProperty(ChanMgrAsyncHttpProviderConfig.EXECUTE_ASYNC_CONNECT, "true");
 
             bc.setAsyncHttpClientProviderConfig(config);
             c = new AsyncHttpClient(bc.build());
@@ -229,9 +229,9 @@ public class RetryNonBlockingIssue {
             bc.setConnectionTimeoutInMs(30000);
             bc.setRequestTimeoutInMs(30000);
 
-            NettyAsyncHttpProviderConfig config = new
-                    NettyAsyncHttpProviderConfig();
-            config.addProperty(NettyAsyncHttpProviderConfig.USE_BLOCKING_IO, "true");
+            ChanMgrAsyncHttpProviderConfig config = new
+                    ChanMgrAsyncHttpProviderConfig();
+            //config.addProperty(ChanMgrAsyncHttpProviderConfig.USE_BLOCKING_IO, "true");
 
             bc.setAsyncHttpClientProviderConfig(config);
             c = new AsyncHttpClient(bc.build());

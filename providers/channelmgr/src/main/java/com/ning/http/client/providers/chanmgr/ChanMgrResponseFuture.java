@@ -43,9 +43,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @param <V>
  */
-public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
+public final class ChanMgrResponseFuture<V> extends AbstractListenableFuture<V> {
 
-    private final static Logger logger = LoggerFactory.getLogger(NettyResponseFuture.class);
+    private final static Logger logger = LoggerFactory.getLogger(ChanMgrResponseFuture.class);
     public final static String MAX_RETRY = "com.ning.http.client.providers.netty.maxRetry";
 
     enum STATE {
@@ -74,7 +74,7 @@ public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
     private final AtomicBoolean statusReceived = new AtomicBoolean(false);
     private final AtomicLong touch = new AtomicLong(System.currentTimeMillis());
     private final long start = System.currentTimeMillis();
-    private final NettyAsyncHttpProvider asyncHttpProvider;
+    private final ChanMgrAsyncHttpProvider asyncHttpProvider;
     private final AtomicReference<STATE> state = new AtomicReference<STATE>(STATE.NEW);
     private final AtomicBoolean contentProcessed = new AtomicBoolean(false);
     private Channel channel;
@@ -86,13 +86,13 @@ public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
     private final AtomicBoolean throwableCalled = new AtomicBoolean(false);
     private boolean allowConnect = false;
 
-    public NettyResponseFuture(URI uri,
+    public ChanMgrResponseFuture(URI uri,
                                Request request,
                                AsyncHandler<V> asyncHandler,
                                HttpRequest nettyRequest,
                                int responseTimeoutInMs,
                                int idleConnectionTimeoutInMs,
-                               NettyAsyncHttpProvider asyncHttpProvider) {
+                               ChanMgrAsyncHttpProvider asyncHttpProvider) {
 
         this.asyncHandler = asyncHandler;
         this.responseTimeoutInMs = responseTimeoutInMs;
@@ -149,7 +149,7 @@ public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
         if (isCancelled.get()) return false;
 
         try {
-            channel.getPipeline().getContext(NettyAsyncHttpProvider.class).setAttachment(new NettyAsyncHttpProvider.DiscardEvent());
+            channel.getPipeline().getContext(ChanMgrAsyncHttpProvider.class).setAttachment(new ChanMgrAsyncHttpProvider.DiscardEvent());
             channel.close();
         } catch (Throwable t) {
             // Ignore
@@ -213,7 +213,7 @@ public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
             if (expired) {
                 isCancelled.set(true);
                 try {
-                    channel.getPipeline().getContext(NettyAsyncHttpProvider.class).setAttachment(new NettyAsyncHttpProvider.DiscardEvent());
+                    channel.getPipeline().getContext(ChanMgrAsyncHttpProvider.class).setAttachment(new ChanMgrAsyncHttpProvider.DiscardEvent());
                     channel.close();
                 } catch (Throwable t) {
                     // Ignore
@@ -407,7 +407,7 @@ public final class NettyResponseFuture<V> extends AbstractListenableFuture<V> {
         return b;
     }
 
-    protected NettyAsyncHttpProvider provider() {
+    protected ChanMgrAsyncHttpProvider provider() {
         return asyncHttpProvider;
     }
 

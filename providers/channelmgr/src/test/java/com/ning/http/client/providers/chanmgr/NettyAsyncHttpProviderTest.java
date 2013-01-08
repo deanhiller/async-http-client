@@ -12,25 +12,21 @@
  */
 package com.ning.http.client.providers.chanmgr;
 
+import static org.testng.Assert.assertEquals;
+
+import org.testng.annotations.Test;
+
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;
 import com.ning.http.client.Response;
 import com.ning.http.client.async.AbstractBasicTest;
-import com.ning.http.client.async.ProviderUtil;
-import com.ning.http.client.providers.chanmgr.NettyAsyncHttpProviderConfig;
-
-import org.testng.annotations.Test;
-
-import java.util.concurrent.Executors;
-
-import static org.testng.Assert.assertEquals;
 
 public class NettyAsyncHttpProviderTest extends AbstractBasicTest {
 
     @Test
     public void bossThreadPoolExecutor() throws Throwable {
-        NettyAsyncHttpProviderConfig conf = new NettyAsyncHttpProviderConfig();
-        conf.addProperty(NettyAsyncHttpProviderConfig.BOSS_EXECUTOR_SERVICE, Executors.newSingleThreadExecutor());
+        ChanMgrAsyncHttpProviderConfig conf = new ChanMgrAsyncHttpProviderConfig();
+        //conf.addProperty(ChanMgrAsyncHttpProviderConfig.BOSS_EXECUTOR_SERVICE, Executors.newSingleThreadExecutor());
 
         AsyncHttpClientConfig cf = new AsyncHttpClientConfig.Builder().setAsyncHttpClientProviderConfig(conf).build();
         AsyncHttpClient c = getAsyncHttpClient(cf);
@@ -42,6 +38,6 @@ public class NettyAsyncHttpProviderTest extends AbstractBasicTest {
 
     @Override
     public AsyncHttpClient getAsyncHttpClient(AsyncHttpClientConfig config) {
-        return ProviderUtil.nettyProvider(config);
+        return ChanMgrUtil.provider(config);
     }
 }
