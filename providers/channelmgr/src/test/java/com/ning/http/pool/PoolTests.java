@@ -112,11 +112,15 @@ public class PoolTests {
     	pool.obtainConnection("abc", list3);
     	Assert.assertNull(list3.fetchAndReset());
     	
+    	String poolStr = pool+"";
+    	
     	MockListener list4 = new MockListener();
     	pool.obtainConnection("zyx", list4);
     	Assert.assertNull(list4.fetchAndReset());
     	
+    	poolStr = pool+"";
     	pool.releaseConnection(conn3);
+    	poolStr = pool+"";
     	//listener3 still can't fire because his pool is still full
     	Assert.assertNull(list3.fetchAndReset());
     	
@@ -128,7 +132,7 @@ public class PoolTests {
     	int inUse = pool.getNumInUseConnections();
     	Assert.assertEquals(3, idle+inUse);
     	
-    	String poolStr = pool+"";
+
     	System.out.println("poolStr="+poolStr);
     }
 }

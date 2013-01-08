@@ -31,10 +31,12 @@ public class HostPool<T> {
 		idleConnections.add(conn);
 	}
 
-//	public void addPendingRequest(PendingRequest<T> request) {
-//		pendingRequests.add(request);
-//	}
-//	
+	public void closeConnection(Connection<T> conn) {
+		inUseConnections.remove(conn);
+		idleConnections.remove(conn);
+		conn.close();
+	}
+	
 	public int numIdle() {
 		return idleConnections.size();
 	}

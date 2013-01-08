@@ -116,32 +116,64 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
 		if(maxTotalConnections > 0)
 			max = maxTotalConnections;
 		
-		HostPool<T> idleConnectionsForHost = fetchQueue(baseUrl, connectionsPool);
 		synchronized(this) {
-			//release the connection back to it's pool
-			idleConnectionsForHost.releaseConnection(state);
+			//can't release yet as we don't know if we have to close or just release from inUse to idle yet(depends if we are
+			//maxed out AND if this request uri matches the one being released)
+			
+			HostPool<T> pool = fetchQueue(baseUrl, connectionsPool);
+			pool.releaseConnection(state);
 			
 			//fetch the next pending request which could be for any pool
 			for(int i = 0; i < pendingRequests.size(); i++) {
 				PendingRequest<T> request = pendingRequests.get(i);
-				if(process(request, maxPerHost, max))
+				if(process(request, maxPerHost, max, state)) {
 					break; 
+				}
 			}
 		}
 	}
 
-	private boolean process(PendingRequest<T> request, int maxPerHost, int max) {
+	private boolean process(PendingRequest<T> request, int maxPerHost, int max, Connection<T> state) {
 		HostPool<T> pool = fetchQueue(request.getBaseUrl(), connectionsPool);
 		int numInUse = pool.numInUse();
         if(numInUse >= maxPerHost) {
         	log.debug("Pool still at max connections, skip this pending request=" +request.getBaseUrl());
         	return false;
-        } else {
-        	Connection<T> connection = pool.grabConnection(creator);
-        	connection.setBaseUrl(request.getBaseUrl());
-        	request.connectionAvailable(connection);
-        	return true;
+        } else if(!request.getBaseUrl().equals(state.getBaseUrl())) {
+        	//This is NOT the same uri!!! sooooo if at max connections we MUST close this one being released to
+        	//stay under max connections.
+    		HostPool<T> previousHostsPool = fetchQueue(state.getBaseUrl(), connectionsPool);
+			int totalSize = getTotalSize();
+			if(totalSize >= max) {
+				//we are at the max now AND uris don't match so we can't re-use this connection.  we must close it
+				closeConnection(state, previousHostsPool);
+			}
         }
+
+        //Now, grab the connection AND if the baseUrls matched, it actually just grabs the one we just released
+    	grabConnection(request, pool);
+    	return true;
+	}
+
+	private void grabConnection(PendingRequest<T> request, HostPool<T> pool) {
+		Connection<T> connection = pool.grabConnection(creator);
+		connection.setBaseUrl(request.getBaseUrl());
+		request.connectionAvailable(connection);
+	}
+
+	private void closeConnection(Connection<T> state, HostPool<T> previousHostsPool) {
+		previousHostsPool.closeConnection(state);
+		checkOnReleaseHostPool(state.getBaseUrl(), previousHostsPool);
+	}
+
+	private void checkOnReleaseHostPool(String uri,
+			HostPool<T> previousHostsPool) {
+		//now we need to check if we need to release the HostPool resource(ie. no connections left)
+		int total = previousHostsPool.numTotalConnections();
+		if(total == 0) {
+			//release the memory here....pool is no longer used
+			connectionsPool.remove(uri);
+		}
 	}
 
 	private class IdleChannelDetector implements Runnable {
@@ -149,15 +181,16 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
 		@Override
 		public void run() {
 			//can't iterate over open 
-			for(HostPool<T> pool : connectionsPool.values()) {
+			for(String key : connectionsPool.keySet()) {
+				HostPool<T> pool = connectionsPool.get(key);
 				//synchronize inside the for loop such that other threads still have a chance to obtain connections so if
 				//there was 1000 connections, we don't stay in the loop too long(unless they are all to one server :( ).
 				synchronized(AsyncConnectionPoolImpl.this) {
 					pool.releaseIdleConnections(maxIdleTime);
+					checkOnReleaseHostPool(key, pool);
 				}
 			}
 		}
-
 	}
 
 	@Override
@@ -171,11 +204,19 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
 	}
 
 	public int getNumIdleConnections() {
-		return 0;
+		int total = 0;
+		for(HostPool<T> host : connectionsPool.values()) {
+			total += host.numIdle();
+		}
+		return total;
 	}
 
 	public int getNumInUseConnections() {
-		return 0;
+		int total = 0;
+		for(HostPool<T> host : connectionsPool.values()) {
+			total += host.numInUse();
+		}
+		return total;
 	}
 	
 }
