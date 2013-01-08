@@ -15,10 +15,10 @@ public class HostPool<T> {
 		return "[IDLE="+idleConnections+",   IN_USE="+inUseConnections+"]";
 	}
 
-	public Connection<T> grabConnection(ConnectionCreator<T> creator) {
+	public Connection<T> grabConnection(ConnectionCreator<T> creator, ConnectionCloseListener<T> listener) {
     	Connection<T> conn = idleConnections.poll();
     	if(conn == null) {
-    		conn = creator.createConnection();
+    		conn = creator.createConnection(listener);
     	}
     	
 		if(conn != null)
@@ -35,6 +35,11 @@ public class HostPool<T> {
 		inUseConnections.remove(conn);
 		idleConnections.remove(conn);
 		conn.close();
+	}
+	
+	public void connectionClosedFarEnd(Connection<T> conn) {
+		inUseConnections.remove(conn);
+		idleConnections.remove(conn);
 	}
 	
 	public int numIdle() {

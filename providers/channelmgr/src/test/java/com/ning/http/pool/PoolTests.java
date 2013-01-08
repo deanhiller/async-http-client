@@ -132,7 +132,8 @@ public class PoolTests {
     	int inUse = pool.getNumInUseConnections();
     	Assert.assertEquals(3, idle+inUse);
     	
-
+    	//check for memory issues on the map
+    	Assert.assertEquals(2, pool.getNumPools());
     	System.out.println("poolStr="+poolStr);
     }
 }

@@ -3,8 +3,6 @@ package com.ning.http.pool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -12,10 +10,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ning.http.client.providers.chanmgr.ChanMgrAsyncHttpProvider;
 import com.ning.http.client.providers.chanmgr.ChanMgrConnectionsPool;
 
-public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
+public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, ConnectionCloseListener<T> {
 
     private final static Logger log = LoggerFactory.getLogger(ChanMgrConnectionsPool.class);
     private final ConcurrentHashMap<String, HostPool<T>> connectionsPool = new ConcurrentHashMap<String, HostPool<T>>();
@@ -65,7 +62,7 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
 	        	log.debug("Maximum number of requests reached for host="+baseUrl+" total="+maxConnectionPerHost+" We are waiting for release of connection now ms="+requestTimeout);
 	        	schedulePendingRequest(baseUrl, l);
 	        } else {
-	        	Connection<T> connection = idleConnectionForHost.grabConnection(creator);
+	        	Connection<T> connection = idleConnectionForHost.grabConnection(creator, this);
 	        	connection.setBaseUrl(baseUrl);
 	        	l.connectionAvailable(connection);
 	        }
@@ -155,8 +152,16 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
     	return true;
 	}
 
+	@Override
+	public void connectionClosed(Connection<T> conn) {
+		synchronized(this) {
+			HostPool<T> pool = fetchQueue(conn.getBaseUrl(), connectionsPool);
+			pool.connectionClosedFarEnd(conn);
+		}
+	}
+
 	private void grabConnection(PendingRequest<T> request, HostPool<T> pool) {
-		Connection<T> connection = pool.grabConnection(creator);
+		Connection<T> connection = pool.grabConnection(creator, this);
 		connection.setBaseUrl(request.getBaseUrl());
 		request.connectionAvailable(connection);
 	}
@@ -219,4 +224,8 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T> {
 		return total;
 	}
 	
+	public int getNumPools() {
+		return connectionsPool.size();
+	}
+
 }
