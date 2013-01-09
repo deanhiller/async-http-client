@@ -23,4 +23,9 @@ public class FakeConnectionPool implements AsyncConnectionPool<TCPChannel>, Conn
 		//no-op since connection is used only once anyways
 	}
 
+	@Override
+	public void clear() {
+		//do nothing
+	}
+
 }
