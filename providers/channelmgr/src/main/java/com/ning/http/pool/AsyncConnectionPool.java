@@ -12,7 +12,9 @@ public interface AsyncConnectionPool<T> {
 	 * @param l
 	 */
 	void obtainConnection(String baseUrl, ConnectionAvailableListener<T> l);
+
+	public void clear();
 	
-	void releaseConnection(Connection<T> state);	
+	//void releaseConnection(Connection<T> state);	
 	
 }

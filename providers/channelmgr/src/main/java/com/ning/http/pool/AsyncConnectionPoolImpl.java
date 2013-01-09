@@ -10,11 +10,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ning.http.client.providers.chanmgr.ChanMgrConnectionsPool;
-
 public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, ConnectionCloseListener<T> {
 
-    private final static Logger log = LoggerFactory.getLogger(ChanMgrConnectionsPool.class);
+    private final static Logger log = LoggerFactory.getLogger(AsyncConnectionPoolImpl.class);
     private final ConcurrentHashMap<String, HostPool<T>> connectionsPool = new ConcurrentHashMap<String, HostPool<T>>();
     private List<PendingRequest<T>> pendingRequests = new ArrayList<PendingRequest<T>>();
     
@@ -25,6 +23,7 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, Conne
 	private ConnectionCreator<T> creator;
 	private int requestTimeout;
 	private ScheduledExecutorService timer;
+	private ScheduledFuture<?> idleChannelFuture;
 
     public AsyncConnectionPoolImpl(PoolConfig config, ScheduledExecutorService svc) {
         this.maxTotalConnections = config.getMaxTotalConnections();
@@ -33,7 +32,7 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, Conne
         this.maxIdleTime = config.getIdleConnectionInPoolTimeoutInMs();
         this.requestTimeout = config.getRequestTimeoutInMs();
         this.timer = svc;
-        timer.scheduleAtFixedRate(new IdleChannelDetector(), maxIdleTime, maxIdleTime, TimeUnit.MILLISECONDS);
+        idleChannelFuture = timer.scheduleAtFixedRate(new IdleChannelDetector(), maxIdleTime, maxIdleTime, TimeUnit.MILLISECONDS);
     }
 
 	@Override
@@ -100,7 +99,6 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, Conne
 		return queue;
 	}
 
-	@Override
 	public void releaseConnection(Connection<T> state) {
 		String baseUrl = state.getBaseUrl();
 		state.setLastTimeUsed(System.currentTimeMillis());
@@ -226,6 +224,19 @@ public class AsyncConnectionPoolImpl<T> implements AsyncConnectionPool<T>, Conne
 	
 	public int getNumPools() {
 		return connectionsPool.size();
+	}
+
+	@Override
+	public void clear() {
+		pendingRequests.clear();
+		
+		synchronized(this) {
+			for(HostPool<T> host : connectionsPool.values()) {
+				host.closeAllConnections();
+			}
+			connectionsPool.clear();
+		}
+		idleChannelFuture.cancel(false);
 	}
 
 }

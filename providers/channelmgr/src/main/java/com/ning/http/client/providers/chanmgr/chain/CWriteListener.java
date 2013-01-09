@@ -8,21 +8,23 @@ import org.playorm.nio.api.handlers.OperationCallback;
 
 import com.ning.http.client.providers.chanmgr.ChanMgrResponseFuture;
 
-public class BWriteListener<T> implements OperationCallback {
+public class CWriteListener<T> implements OperationCallback {
 
 	private ChanMgrResponseFuture<T> future;
 
-	public BWriteListener(ChanMgrResponseFuture<T> future) {
+	public CWriteListener(ChanMgrResponseFuture<T> future) {
 		this.future = future;
 	}
 
 	@Override
 	public void finished(Channel c) throws IOException {
-		//is there anyway to notify the client in async-http-client that the write request went through?
+		//1. is there anyway to notify the client in async-http-client that the write request went through?
+		//2. Do we even want to notify the client..what would be the point?
 	}
 
 	@Override
 	public void failed(RegisterableChannel c, Throwable e) {
+		future.abort(e);
 	}
 
 }

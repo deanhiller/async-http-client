@@ -1,6 +1,5 @@
 package com.ning.http.client.providers.chanmgr.chain;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.playorm.nio.api.channels.Channel;
@@ -10,30 +9,26 @@ import org.playorm.nio.api.handlers.OperationCallback;
 
 import com.ning.http.client.providers.chanmgr.ChanMgrResponseFuture;
 
-public class AConnectListener<T> implements OperationCallback {
-
-	private ChanMgrResponseFuture<T> future;
-
-	public AConnectListener(ChanMgrResponseFuture<T> future) {
-		this.future = future;
-	}
+public class BConnectCallback<T> implements OperationCallback {
 
 	@Override
-	public void finished(Channel c) throws IOException {
+	public void finished(Channel c) {
 		performWrite(c);
 	}
 
 	@Override
 	public void failed(RegisterableChannel c, Throwable e) {
-		// TODO Auto-generated method stub
-		
+		Channel channel = (Channel) c;
+		ChanMgrResponseFuture<T> future = (ChanMgrResponseFuture<T>) channel.getSession().get("future");
+		future.abort(e);
 	}
 
-	public void performWrite(Channel c) {
-		BWriteListener<T> writeListener = new BWriteListener<T>(future);
-		
+	public void performWrite(Channel channel) {
+		ChanMgrResponseFuture<T> future = (ChanMgrResponseFuture<T>) channel.getSession().get("future");
+		CWriteListener<T> writeListener = new CWriteListener<T>(future);
+
 		ByteBuffer b = null;
-		FutureOperation futureOp = c.write(b);
+		FutureOperation futureOp = channel.write(b);
 		futureOp.setListener(writeListener);
 	}
 

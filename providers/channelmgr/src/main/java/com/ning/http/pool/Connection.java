@@ -5,6 +5,7 @@ public abstract class Connection<T> {
 	private String baseUrl;
 	private T channel;
 	private long lastTimeUsed;
+	private AsyncConnectionPoolImpl<T> pool;
 	
 	public Connection(T channel2) {
 		this.channel = channel2;
@@ -17,6 +18,10 @@ public abstract class Connection<T> {
 	 */
 	protected abstract void close();
 	
+	public void releaseConnection() {
+		pool.releaseConnection(this);
+	}
+	
 	public String getBaseUrl() {
 		return baseUrl;
 	}
@@ -25,6 +30,10 @@ public abstract class Connection<T> {
 		this.baseUrl = uri;
 	}
 
+	void setPool(AsyncConnectionPoolImpl<T> pool) {
+		this.pool = pool;
+	}
+	
 	void setLastTimeUsed(long currentTimeMillis) {
 		this.lastTimeUsed = currentTimeMillis;
 	}

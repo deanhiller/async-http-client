@@ -67,4 +67,17 @@ public class HostPool<T> {
 			}
 		}
 	}
+
+	public void closeAllConnections() {
+		for(Connection<T> conn : idleConnections) {
+			conn.close();
+		}
+		
+		for(Connection<T> conn : inUseConnections) {
+			conn.close();
+		}
+		
+		idleConnections.clear();
+		inUseConnections.clear();
+	}
 }

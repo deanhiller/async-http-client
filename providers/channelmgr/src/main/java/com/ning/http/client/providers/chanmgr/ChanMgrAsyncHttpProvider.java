@@ -38,8 +38,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -120,19 +122,27 @@ import com.ning.http.client.listener.TransferCompletionHandler;
 import com.ning.http.client.ntlm.NTLMEngine;
 import com.ning.http.client.ntlm.NTLMEngineException;
 import com.ning.http.client.providers.chanmgr.FeedableBodyGenerator.FeedListener;
-import com.ning.http.client.providers.chanmgr.chain.AConnectListener;
+import com.ning.http.client.providers.chanmgr.chain.AChannelFromPoolListener;
+import com.ning.http.client.providers.chanmgr.chain.BConnectCallback;
 import com.ning.http.client.providers.chanmgr.spnego.SpnegoEngine;
 import com.ning.http.client.providers.chanmgr.util.CleanupChannelGroup;
 import com.ning.http.client.websocket.WebSocketUpgradeHandler;
 import com.ning.http.multipart.MultipartBody;
 import com.ning.http.multipart.MultipartRequestEntity;
+import com.ning.http.pool.AsyncConnectionPool;
+import com.ning.http.pool.AsyncConnectionPoolImpl;
+import com.ning.http.pool.Connection;
+import com.ning.http.pool.ConnectionCloseListener;
+import com.ning.http.pool.ConnectionCreator;
+import com.ning.http.pool.FakeConnectionPool;
+import com.ning.http.pool.PoolConfig;
 import com.ning.http.util.AsyncHttpProviderUtils;
 import com.ning.http.util.AuthenticatorUtils;
 import com.ning.http.util.ProxyUtils;
 import com.ning.http.util.SslUtils;
 import com.ning.http.util.UTF8UrlEncoder;
 
-public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler implements AsyncHttpProvider {
+public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler implements AsyncHttpProvider, ConnectionCreator<TCPChannel> {
     private final static String WEBSOCKET_KEY = "Sec-WebSocket-Key";
     private final static String HTTP_HANDLER = "httpHandler";
     protected final static String SSL_HANDLER = "sslHandler";
@@ -148,7 +158,7 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
     private final AsyncHttpClientConfig config;
     private final AtomicBoolean isClose = new AtomicBoolean(false);
 
-    private final ConnectionsPool<String, TCPChannel> connectionsPool;
+    private final AsyncConnectionPool<TCPChannel> connectionsPool;
     private Semaphore freeConnections = null;
     private final ChanMgrAsyncHttpProviderConfig asyncHttpProviderConfig;
     private final boolean trackConnections;
@@ -175,14 +185,20 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
         this.config = config;
 
         // This is dangerous as we can't catch a wrong typed ConnectionsPool
-        ConnectionsPool<String, TCPChannel> cp = (ConnectionsPool<String, TCPChannel>) config.getConnectionsPool();
-        if (cp == null && config.getAllowPoolingConnection()) {
-            cp = new ChanMgrConnectionsPool(this);
-        } else if (cp == null) {
-            cp = new NonConnectionsPool();
+        if (config.getAllowPoolingConnection()) {
+    		PoolConfig poolConfig = new PoolConfig();
+    		poolConfig.setMaxConnectionPerHost(config.getMaxConnectionPerHost());
+    		poolConfig.setMaxTotalConnections(config.getMaxTotalConnections());
+    		poolConfig.setRequestTimeoutInMs(config.getRequestTimeoutInMs());
+    		poolConfig.setIdleConnectionInPoolTimeoutInMs(config.getIdleConnectionInPoolTimeoutInMs());
+            ScheduledExecutorService svc = Executors.newScheduledThreadPool(1);
+            connectionsPool = new AsyncConnectionPoolImpl<TCPChannel>(poolConfig, svc);
+        } else {
+        	connectionsPool = new FakeConnectionPool();
         }
-        this.connectionsPool = cp;
 
+        connectionsPool.setCreator(this);
+        
         if (config.getMaxTotalConnections() != -1) {
             trackConnections = true;
             freeConnections = new Semaphore(config.getMaxTotalConnections());
@@ -198,24 +214,6 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
         return String.format("ChanMgrAsyncHttpProvider:\n\t- maxConnections: %d\n\t- connectionPools: %s",
                 config.getMaxTotalConnections() - freeConnections.availablePermits(),
                 connectionsPool.toString());
-    }
-
-    private TCPChannel lookupInCache(URI uri) {
-        final TCPChannel channel = connectionsPool.poll(AsyncHttpProviderUtils.getBaseUrl(uri));
-
-//        if (channel != null) {
-//            log.debug("Using cached Channel {}\n for uri {}\n", channel, uri);
-//
-//            try {
-//                // Always make sure the channel who got cached support the proper protocol. It could
-//                // only occurs when a HttpMethod.CONNECT is used agains a proxy that require upgrading from http to
-//                // https.
-//                return verifyChannelPipeline(channel, uri.getScheme());
-//            } catch (Exception ex) {
-//                log.debug(ex.getMessage(), ex);
-//            }
-//        }
-        return null;
     }
 
     private SSLEngine createSSLEngine() throws IOException, GeneralSecurityException {
@@ -533,19 +531,17 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
     }
 
     private static boolean isWebSocket(URI uri) {
-		// TODO Auto-generated method stub
-		return false;
+		throw new UnsupportedOperationException();
 	}
 
 	private static boolean isSecure(URI uri) {
-		// TODO Auto-generated method stub
-		return false;
+		throw new UnsupportedOperationException();
 	}
 
 	public void close() {
         isClose.set(true);
         try {
-            connectionsPool.destroy();
+            connectionsPool.clear();
             config.executorService().shutdown();
             config.reaper().shutdown();
             chanMgr.stop();
@@ -565,41 +561,19 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
     /* @Override */
 
     public <T> ListenableFuture<T> execute(Request request, final AsyncHandler<T> asyncHandler) throws IOException {
-    	TCPChannel channel = chanMgr.createTCPChannel("channel"+getNextNum());
     	
         String requestUrl = request.getUrl();
         URI uri = AsyncHttpProviderUtils.createUri(requestUrl);
 
-        InetSocketAddress remoteAddress = null;
-        if (request.getInetAddress() != null) {
-            remoteAddress = new InetSocketAddress(request.getInetAddress(), AsyncHttpProviderUtils.getPort(uri));
-        }
-
-       // connectionsPool.
-        
         HttpRequest nettyRequest = null;
-
-        ChanMgrResponseFuture<T> future = new ChanMgrResponseFuture<T>(uri, request, asyncHandler, nettyRequest, config.getRequestTimeoutInMs(), config.getIdleConnectionTimeoutInMs(), this);
+        ChanMgrResponseFuture<T> future = new ChanMgrResponseFuture<T>();
         
-        AConnectListener<T> listener = new AConnectListener<T>(future);
-        boolean fromPool = false;
-        
-        if(!fromPool) {
-        	FutureOperation futureOp = channel.connect(remoteAddress);
-        	futureOp.setListener(listener);
-        } else {
-        	//we are re-using the channel, so just perform the write only then...
-        	
-        	//no need to wait for connection so just write the request out
-        	listener.performWrite(channel);
-        }
+    	String baseUrl = AsyncHttpProviderUtils.getBaseUrl(uri);
+    	connectionsPool.obtainConnection(baseUrl, new AChannelFromPoolListener(request, future, uri));
     	
     	return future;
     }
 
-    private synchronized int getNextNum() {
-    	return chanCount++;
-    }
     protected static int requestTimeout(AsyncHttpClientConfig config, PerRequestConfig perRequestConfig) {
         int result;
         if (perRequestConfig != null) {
@@ -758,26 +732,14 @@ public class ChanMgrAsyncHttpProvider extends SimpleChannelUpstreamHandler imple
         return config;
     }
 
-    private static class NonConnectionsPool implements ConnectionsPool<String, TCPChannel> {
-
-        public boolean offer(String uri, TCPChannel connection) {
-            return false;
-        }
-
-        public TCPChannel poll(String uri) {
-            return null;
-        }
-
-        public boolean removeAll(TCPChannel connection) {
-            return false;
-        }
-
-        public boolean canCacheConnection() {
-            return true;
-        }
-
-        public void destroy() {
-        }
-    }
+	@Override
+	public Connection<TCPChannel> createConnection(ConnectionCloseListener<TCPChannel> l) {
+		TCPChannel channel = chanMgr.createTCPChannel("chan"+getNextNum3());
+		ChanMgrConnection conn = new ChanMgrConnection(channel);
+		return conn;
+	}
    
+    private synchronized int getNextNum3() {
+    	return chanCount++;
+    }
 }

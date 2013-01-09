@@ -5,7 +5,7 @@ public class MockCreator implements ConnectionCreator<Integer> {
 	private int counter;
 	
 	@Override
-	public Connection<Integer> createConnection() {
+	public Connection<Integer> createConnection(ConnectionCloseListener<Integer> listener) {
 		return new MyConnection(counter++);
 	}
 	
